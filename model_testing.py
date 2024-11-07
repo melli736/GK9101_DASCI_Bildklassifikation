@@ -20,7 +20,7 @@ def test_model(model, test_loader):
 
 if __name__ == "__main__":
     # Lade die Testdaten (die Trainingsdaten werden hier ignoriert)
-    _, test_loader = load_data("data", batch_size=16)
+    _, test_loader = load_data("data", batch_size=16)  # Testdaten aus allen Ordnern
 
     # Teste die Modelle mit verschiedenen Größen der versteckten Schichten
     for hidden_layer_size in [64, 128, 256]:

@@ -44,9 +44,8 @@ def train_model(model, train_loader, num_epochs=100, learning_rate=0.001, model_
     print("Training abgeschlossen.")  # Meldung, wenn das Training beendet ist
     torch.save(model.state_dict(), f"{model_name}.pth")  # Speichere die Modellgewichte
 
-
 if __name__ == "__main__":
-    train_loader, _ = load_data("data", batch_size=16)  # Lade die Trainingsdaten
+    train_loader, _ = load_data("data", batch_size=16)  # Lade nur die Trainingsdaten mit den Ordnern "bracketRight" und "exclamationmark"
 
     # Training mit verschiedenen Größen der versteckten Schichten
     for hidden_layer_size in [64, 128, 256]:
