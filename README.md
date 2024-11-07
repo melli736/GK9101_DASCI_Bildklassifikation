@@ -77,9 +77,39 @@ In dieser Datei lade ich den Datensatz von Kaggle herunter:
 
 - **Testen und Auswertung:** Nachdem das Modell trainiert wurde, teste ich es mit den Testdaten, um zu überprüfen, wie gut es auf neuen, unbekannten Daten funktioniert. Dies ist ein wichtiger Schritt, um sicherzustellen, dass das Modell verallgemeinert und nicht nur auf den Trainingsdaten gut funktioniert.
 
-### Weitere Überlegungen:
-- Ich könnte eine **Visualisierung** der Trainings- und Testgenauigkeit hinzufügen, um zu sehen, wie sich das Modell im Laufe der Zeit verbessert.
-- **Hyperparameter-Optimierung:** Ich könnte auch andere Hyperparameter wie die Lernrate anpassen oder zusätzliche Techniken wie Dropout ausprobieren, um das Modell weiter zu verbessern.
+## Output - Format 
+Die `.pth`-Dateien, die in deinem Projekt verwendet werden, sind **Modelldateien** von PyTorch. Sie enthalten die **gewonnenen Modellgewichte** (auch als Parameter bezeichnet), die das neuronale Netzwerk während des Trainings gelernt hat.
 
-Insgesamt habe ich ein funktionierendes System entwickelt, das ein CNN nutzt, um handgeschriebene Mathematiksymbole zu klassifizieren. Der Code ist gut strukturiert und deckt alle wichtigen Schritte des Trainings und Testens ab.
+### Was ist eine `.pth`-Datei?
+
+- **.pth** ist eine gängige Dateiendung in PyTorch, die für **"path"** oder **"PyTorch"** steht und verwendet wird, um gespeicherte Modellgewichte zu speichern. Es handelt sich dabei um ein **binäres Format**, das die Gewichte und Parameter des trainierten Modells enthält, damit dieses später wiederverwendet oder getestet werden kann, ohne das Modell erneut trainieren zu müssen.
+
+### Warum sind `.pth`-Dateien wichtig?
+
+- **Modell speichern:** Während des Trainings eines neuronalen Netzwerks werden die Modellgewichte immer wieder aktualisiert. Nach dem Abschluss des Trainings möchte man in der Regel den besten Zustand des Modells speichern, um das Training zu einem späteren Zeitpunkt fortzusetzen oder das Modell für Vorhersagen (Inference) zu verwenden. Dies wird in einer `.pth`-Datei gespeichert.
+  
+- **Wiederverwendung des Modells:** Wenn man das Modell erneut laden möcht, ohne das gesamte Training zu wiederholen, kann man einfach die `.pth`-Datei laden, um die gespeicherten Gewichte wieder in das Modell zu laden und das Modell für Tests oder Vorhersagen zu verwenden.
+
+### In meinem Projekt:
+
+- In der Datei **`model_training.py`** wird das Modell nach jedem Trainingsdurchgang gespeichert mit dem Befehl:
+  
+  ```python
+  torch.save(model.state_dict(), f"{model_name}.pth")
+  ```
+
+  Hier wird das Modell nach jedem Training mit der spezifischen Anzahl an versteckten Schichten (z. B. `symbol_cnn_64.pth`, `symbol_cnn_128.pth`) gespeichert. Die `.pth`-Dateien enthalten die Parameter, die das Modell während des Trainings gelernt hat, basierend auf der Architektur (Anzahl und Größe der Schichten) und den Trainingsdaten.
+
+- In **`model_testing.py`** lädst du dann diese gespeicherten `.pth`-Dateien, um das Modell zu testen:
+  
+  ```python
+  model.load_state_dict(torch.load(f"symbol_cnn_{hidden_layer_size}.pth"))
+  ```
+
+  Damit werden die Gewichte aus der `.pth`-Datei in das Modell geladen, das du dann auf den Testdaten evaluierst.
+
+### Zusammenfassung:
+- **.pth-Dateien** sind PyTorch-Dateien, die die **trainierten Modellgewichte** enthalten.
+- Du speicherst sie nach dem Training, um die Ergebnisse zu behalten und das Modell später zu testen oder zu verwenden.
+- Durch das Laden der `.pth`-Dateien kannst du das Modell wiederherstellen und seine Vorhersagen auf neuen Daten testen, ohne das Modell erneut zu trainieren.
 
