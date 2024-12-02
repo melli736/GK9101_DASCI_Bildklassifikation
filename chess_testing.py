@@ -34,12 +34,12 @@ def test_model(model, test_loader, model_name):
 if __name__ == "__main__":
     # Modell ohne Augmentation laden und testen
     model_no_aug = SimpleCNN(num_hidden_layers=1)
-    model_no_aug.load_state_dict(torch.load('ohne_augmentation_model.pth'))
+    model_no_aug.load_state_dict(torch.load('ohne_augmentation_model.pth', weights_only=True))
     model_no_aug.to(DEVICE)
     test_model(model_no_aug, test_loader, "Modell ohne Augmentation")
 
     # Modell mit Augmentation laden und testen
     model_with_aug = SimpleCNN(num_hidden_layers=3)
-    model_with_aug.load_state_dict(torch.load('mit_augmentation_model.pth'))
+    model_with_aug.load_state_dict(torch.load('mit_augmentation_model.pth', weights_only=True))
     model_with_aug.to(DEVICE)
     test_model(model_with_aug, test_loader, "Modell mit Augmentation")
