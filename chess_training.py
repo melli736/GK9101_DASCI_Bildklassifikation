@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision import datasets, transforms, models
+from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, random_split
 import imgaug.augmenters as iaa
 import numpy as np
@@ -20,7 +20,7 @@ seq = iaa.Sequential([
     iaa.Crop(percent=(0, 0.1)),
     iaa.Affine(rotate=(-20, 20)),
     iaa.Multiply((0.8, 1.2)),
-    iaa.Resize(IMG_SIZE)  # Add this line
+    iaa.Resize(IMG_SIZE)
 ])
 
 def imgaug_transform(img):
@@ -35,7 +35,6 @@ transform_no_aug = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 ])
-
 
 # Datenaufbereitung mit Augmentation
 transform_with_aug = transforms.Compose([
@@ -65,15 +64,13 @@ class SimpleCNN(nn.Module):
     def __init__(self, num_hidden_layers):
         super(SimpleCNN, self).__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),  # Add padding
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2)
         )
 
-        # Calculate the output size of the convolutional layers
         conv_output_size = 32 * (IMG_SIZE[0] // 2) * (IMG_SIZE[1] // 2)
 
-        # Create the fully connected layers
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
             *(nn.Sequential(
@@ -112,6 +109,9 @@ def train(model, train_loader, val_loader, name):
         val_loss, val_accuracy = evaluate(model, val_loader)
         print(f"[{name}] Epoch {epoch+1}/{EPOCHS} - Loss: {running_loss / len(train_loader):.4f}, Accuracy: {correct / total:.4f}, Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.4f}")
 
+    # Speichern des Modells nach dem Training
+    torch.save(model.state_dict(), f'{name.replace(" ", "_").lower()}_model.pth')
+
 # Evaluierungsfunktion
 def evaluate(model, data_loader):
     model.eval()
@@ -128,11 +128,12 @@ def evaluate(model, data_loader):
             correct += (predicted == labels).sum().item()
     return total_loss / len(data_loader), correct / total
 
-# Training und Auswertung
-print("Training ohne Augmentation...")
-model_no_aug = SimpleCNN(num_hidden_layers=1)
-train(model_no_aug, train_loader_no_aug, val_loader_no_aug, "Ohne Augmentation")
+if __name__ == "__main__":
+    # Training und Speichern der Modelle
+    print("Training ohne Augmentation...")
+    model_no_aug = SimpleCNN(num_hidden_layers=1)
+    train(model_no_aug, train_loader_no_aug, val_loader_no_aug, "Ohne Augmentation")
 
-print("Training mit Augmentation...")
-model_with_aug = SimpleCNN(num_hidden_layers=3)
-train(model_with_aug, train_loader_with_aug, val_loader_with_aug, "Mit Augmentation")
+    print("Training mit Augmentation...")
+    model_with_aug = SimpleCNN(num_hidden_layers=3)
+    train(model_with_aug, train_loader_with_aug, val_loader_with_aug, "Mit Augmentation")
