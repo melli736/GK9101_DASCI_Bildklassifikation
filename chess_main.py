@@ -19,13 +19,15 @@ seq = iaa.Sequential([
     iaa.Fliplr(0.5),
     iaa.Crop(percent=(0, 0.1)),
     iaa.Affine(rotate=(-20, 20)),
-    iaa.Multiply((0.8, 1.2))
+    iaa.Multiply((0.8, 1.2)),
+    iaa.Resize(IMG_SIZE)  # Add this line
 ])
 
 def imgaug_transform(img):
     img_np = np.array(img)
     img_aug = seq(images=[img_np])[0]
-    return torch.tensor(img_aug).permute(2, 0, 1) / 255.0
+    img_tensor = torch.tensor(img_aug).float().permute(2, 0, 1) / 255.0
+    return img_tensor
 
 # Datenaufbereitung ohne Augmentation
 transform_no_aug = transforms.Compose([
@@ -34,10 +36,11 @@ transform_no_aug = transforms.Compose([
     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 ])
 
+
 # Datenaufbereitung mit Augmentation
 transform_with_aug = transforms.Compose([
     transforms.Resize(IMG_SIZE),
-    transforms.Lambda(imgaug_transform),  # Augmentierung anwenden
+    transforms.Lambda(imgaug_transform),
     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 ])
 
@@ -62,23 +65,21 @@ class SimpleCNN(nn.Module):
     def __init__(self, num_hidden_layers):
         super(SimpleCNN, self).__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3),
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),  # Add padding
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2)
         )
 
-        # Dummy-Durchlauf zur Berechnung der Größe nach der Convolution
-        with torch.no_grad():
-            dummy_input = torch.zeros(1, 3, IMG_SIZE[0], IMG_SIZE[1])
-            conv_output_size = self.conv(dummy_input).view(1, -1).size(1)
+        # Calculate the output size of the convolutional layers
+        conv_output_size = 32 * (IMG_SIZE[0] // 2) * (IMG_SIZE[1] // 2)
 
-        # Erstellung der FC-Schichten mit Dropout
+        # Create the fully connected layers
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
             *(nn.Sequential(
-                nn.Linear(conv_output_size, 128),
+                nn.Linear(conv_output_size if i == 0 else 128, 128),
                 nn.ReLU(),
-                nn.Dropout(0.5)) for _ in range(num_hidden_layers)),
+                nn.Dropout(0.5)) for i in range(num_hidden_layers)),
             nn.Linear(128, NUM_CLASSES)
         )
 
