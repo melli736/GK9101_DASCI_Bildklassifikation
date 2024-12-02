@@ -1,81 +1,137 @@
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Flatten, Conv2D, MaxPooling2D, Dropout
-from tensorflow.keras.callbacks import EarlyStopping
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import datasets, transforms, models
+from torch.utils.data import DataLoader, random_split
 import imgaug.augmenters as iaa
-import imageio
+import numpy as np
 
-# Pfade
+# Pfade und Parameter
 DATA_DIR = "./data"
 BATCH_SIZE = 32
 IMG_SIZE = (128, 128)
+NUM_CLASSES = 4
+EPOCHS = 20
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Augmentations-Seq
+# Augmentation mit imgaug
 seq = iaa.Sequential([
-    iaa.Fliplr(0.5),  # Horizontale Spiegelung
-    iaa.Crop(percent=(0, 0.1)),  # Zufälliger Beschnitt
-    iaa.Affine(rotate=(-20, 20)),  # Zufällige Rotation
-    iaa.Multiply((0.8, 1.2))  # Helligkeitsanpassung
+    iaa.Fliplr(0.5),
+    iaa.Crop(percent=(0, 0.1)),
+    iaa.Affine(rotate=(-20, 20)),
+    iaa.Multiply((0.8, 1.2))
 ])
 
+def imgaug_transform(img):
+    img_np = np.array(img)
+    img_aug = seq(images=[img_np])[0]
+    return torch.tensor(img_aug).permute(2, 0, 1) / 255.0
+
 # Datenaufbereitung ohne Augmentation
-datagen_no_aug = ImageDataGenerator(
-    rescale=1.0 / 255,
-    validation_split=0.25
-)
+transform_no_aug = transforms.Compose([
+    transforms.Resize(IMG_SIZE),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+])
 
 # Datenaufbereitung mit Augmentation
-datagen_with_aug = ImageDataGenerator(
-    rescale=1.0 / 255,
-    validation_split=0.25,
-    preprocessing_function=lambda img: seq(images=[img])[0]  # Augmentierte Bilder
-)
+transform_with_aug = transforms.Compose([
+    transforms.Resize(IMG_SIZE),
+    transforms.Lambda(imgaug_transform),  # Augmentierung anwenden
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+])
 
-# Trainings- und Testdaten ohne Augmentation
-train_data_no_aug = datagen_no_aug.flow_from_directory(
-    DATA_DIR, target_size=IMG_SIZE, batch_size=BATCH_SIZE, class_mode='categorical', subset='training'
-)
+# Datensätze und Loader
+dataset_no_aug = datasets.ImageFolder(DATA_DIR, transform=transform_no_aug)
+dataset_with_aug = datasets.ImageFolder(DATA_DIR, transform=transform_with_aug)
 
-test_data_no_aug = datagen_no_aug.flow_from_directory(
-    DATA_DIR, target_size=IMG_SIZE, batch_size=BATCH_SIZE, class_mode='categorical', subset='validation'
-)
+# Trainings- und Validierungsaufteilung (75/25)
+train_size = int(0.75 * len(dataset_no_aug))
+val_size = len(dataset_no_aug) - train_size
+train_dataset_no_aug, val_dataset_no_aug = random_split(dataset_no_aug, [train_size, val_size])
+train_dataset_with_aug, val_dataset_with_aug = random_split(dataset_with_aug, [train_size, val_size])
 
-# Trainings- und Testdaten mit Augmentation
-train_data_with_aug = datagen_with_aug.flow_from_directory(
-    DATA_DIR, target_size=IMG_SIZE, batch_size=BATCH_SIZE, class_mode='categorical', subset='training'
-)
+train_loader_no_aug = DataLoader(train_dataset_no_aug, batch_size=BATCH_SIZE, shuffle=True)
+val_loader_no_aug = DataLoader(val_dataset_no_aug, batch_size=BATCH_SIZE)
 
-test_data_with_aug = datagen_with_aug.flow_from_directory(
-    DATA_DIR, target_size=IMG_SIZE, batch_size=BATCH_SIZE, class_mode='categorical', subset='validation'
-)
+train_loader_with_aug = DataLoader(train_dataset_with_aug, batch_size=BATCH_SIZE, shuffle=True)
+val_loader_with_aug = DataLoader(val_dataset_with_aug, batch_size=BATCH_SIZE)
 
-# Modellfunktion
-def create_model(num_hidden_layers):
-    model = Sequential([
-        Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_SIZE[0], IMG_SIZE[1], 3)),
-        MaxPooling2D(pool_size=(2, 2)),
-        Flatten()
-    ])
-    for _ in range(num_hidden_layers):
-        model.add(Dense(128, activation='relu'))
-        model.add(Dropout(0.5))
-    model.add(Dense(4, activation='softmax'))  # 4 Klassen
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    return model
+# Modelldefinition
+class SimpleCNN(nn.Module):
+    def __init__(self, num_hidden_layers):
+        super(SimpleCNN, self).__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2)
+        )
+
+        # Dummy-Durchlauf zur Berechnung der Größe nach der Convolution
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, 3, IMG_SIZE[0], IMG_SIZE[1])
+            conv_output_size = self.conv(dummy_input).view(1, -1).size(1)
+
+        # Erstellung der FC-Schichten mit Dropout
+        self.fc_layers = nn.Sequential(
+            nn.Flatten(),
+            *(nn.Sequential(
+                nn.Linear(conv_output_size, 128),
+                nn.ReLU(),
+                nn.Dropout(0.5)) for _ in range(num_hidden_layers)),
+            nn.Linear(128, NUM_CLASSES)
+        )
+
+    def forward(self, x):
+        x = self.conv(x)
+        return self.fc_layers(x)
+
+# Trainingsfunktion
+def train(model, train_loader, val_loader, name):
+    model.to(DEVICE)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    for epoch in range(EPOCHS):
+        model.train()
+        running_loss = 0.0
+        correct, total = 0, 0
+        for images, labels in train_loader:
+            images, labels = images.to(DEVICE), labels.to(DEVICE)
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+        val_loss, val_accuracy = evaluate(model, val_loader)
+        print(f"[{name}] Epoch {epoch+1}/{EPOCHS} - Loss: {running_loss / len(train_loader):.4f}, Accuracy: {correct / total:.4f}, Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.4f}")
+
+# Evaluierungsfunktion
+def evaluate(model, data_loader):
+    model.eval()
+    total_loss, correct, total = 0.0, 0, 0
+    criterion = nn.CrossEntropyLoss()
+    with torch.no_grad():
+        for images, labels in data_loader:
+            images, labels = images.to(DEVICE), labels.to(DEVICE)
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            total_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    return total_loss / len(data_loader), correct / total
 
 # Training und Auswertung
-def train_and_evaluate(model, train_data, test_data, name):
-    early_stopping = EarlyStopping(patience=5, restore_best_weights=True)
-    history = model.fit(train_data, validation_data=test_data, epochs=20, callbacks=[early_stopping])
-    test_loss, test_accuracy = model.evaluate(test_data)
-    print(f"{name} - Test Accuracy: {test_accuracy:.2f}, Misclassification Rate: {(1 - test_accuracy):.2f}")
-    return history
-
-# Training der Modelle
 print("Training ohne Augmentation...")
-model_no_aug = create_model(1)  # 1 Hidden Layer
-train_and_evaluate(model_no_aug, train_data_no_aug, test_data_no_aug, "Ohne Augmentation")
+model_no_aug = SimpleCNN(num_hidden_layers=1)
+train(model_no_aug, train_loader_no_aug, val_loader_no_aug, "Ohne Augmentation")
 
-print("\nTraining mit Augmentation...")
-model_with_aug = create_model(3)  # 3 Hidden Layers
-train_and_evaluate(model_with_aug, train_data_with_aug, test_data_with_aug, "Mit Augmentation")
+print("Training mit Augmentation...")
+model_with_aug = SimpleCNN(num_hidden_layers=3)
+train(model_with_aug, train_loader_with_aug, val_loader_with_aug, "Mit Augmentation")

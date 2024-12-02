@@ -1,5 +1,8 @@
 tensorflow
-imgaug
+imgaug~=0.4.0
 imageio
-numpy
+numpy~=1.26.4
 matplotlib
+torchvision~=0.20.0
+torch~=2.5.0
+kagglehub~=0.3.3
