@@ -2,6 +2,10 @@
 
 Dieses Projekt implementiert ein Convolutional Neural Network (CNN) zur Klassifikation von Schachfiguren unter Verwendung von PyTorch. Es demonstriert den Einfluss von Datenaugmentation und unterschiedlichen Netzwerkarchitekturen auf die Modellleistung.
 
+## Augumentation
+Die Argumentation für den Einsatz in der Bildverarbeitung zielt darauf ab, die Leistung von Modellen zu verbessern, indem mehr Variabilität in den Trainingsdaten geschaffen wird. Dies hilft dabei, das Modell robuster zu machen und Overfitting zu verhindern, da das Modell lernt, von verschiedenen Varianten eines Bildes zu generalisieren. Für Schachfiguren ist Augmentation wichtig, da es den Modell ermöglicht, nicht nur Bilder in ihrer originalen Form zu erkennen, sondern auch kleine Variationen in der Darstellung, Beleuchtung oder Perspektive zu verarbeiten. In diesem Fall waren die Bilder jedoch von vornherein sehr diverse. Die vorerst zu stark gewählte Augumentation hatte zu folge, dass das Modell schlechter performt hat.
+
+
 ## Projektstruktur
 
 ```
@@ -94,21 +98,23 @@ Hier werden die notwendigen Bibliotheken importiert und globale Parameter defini
 
 ```python
 seq = iaa.Sequential([
-    iaa.Fliplr(0.5),
-    iaa.Crop(percent=(0, 0.1)),
-    iaa.Affine(rotate=(-20, 20)),
-    iaa.Multiply((0.8, 1.2)),
-    iaa.Resize(IMG_SIZE)
+    iaa.Fliplr(0.5),  # Zufälliges horizontales Spiegeln mit 50% Wahrscheinlichkeit
+    iaa.Crop(percent=(0, 0.05)),  # Zufälliges Zuschneiden des Bildes
+    iaa.Multiply((0.95, 1.05)),  # Helligkeit und Kontrast variieren
+    iaa.GaussianBlur(sigma=(0, 0.5))  # Geringe Unschärfe auf die Bilder anwenden
 ])
 
+
+# Funktion, um die Bildaugmentation auf ein Bild anzuwenden
 def imgaug_transform(img):
-    img_np = np.array(img)
-    img_aug = seq(images=[img_np])[0]
-    img_tensor = torch.tensor(img_aug).float().permute(2, 0, 1) / 255.0
+    img_np = np.array(img)  # Konvertiere das Bild in ein NumPy-Array
+    img_aug = seq(images=[img_np])[0]  # Augmentiere das Bild
+    img_tensor = torch.tensor(img_aug).float().permute(2, 0, 1) / 255.0  # Konvertiere das Bild in einen Tensor und normalisiere
     return img_tensor
 ```
 
 Diese Funktion definiert die Augmentationssequenz und eine Funktion zur Anwendung der Augmentation auf einzelne Bilder.
+In meinem Fall war das Problem, dass zu starke Veränderungen und unscharfe Bilder (Blurr) bei den Schachfiguren zu einer schlechten Modellleistung führten. Der Grund ist, dass die Unterschiede zwischen den Schachfiguren oft minimal sind. Ein zu starker Blur-Effekt oder drastische Veränderungen der Bildstruktur könnten dazu führen, dass das Modell die feinen Unterschiede zwischen den Figuren nicht mehr erkennen kann. Um dieses Problem zu lösen, habe ich die Augmentation so angepasst, dass nur subtile Veränderungen angewendet werden. Dies beinhaltet die Verwendung von gezielten und moderaten Transformationen wie leichten Helligkeitsanpassungen, Spiegelungen und minimaler Unschärfe, um die Variabilität zu erhöhen, ohne die Schachfiguren zu verwischen oder die wichtigen Details zu verlieren. So bleibt das Modell in der Lage, die feinen Details und Unterschiede der Schachfiguren zu erkennen, während es gleichzeitig robuster gegenüber variierenden Darstellungen wird.
 
 ### Datentransformationen
 
